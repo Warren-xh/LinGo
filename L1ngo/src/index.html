@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Search the Database</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f4f9;
+        }
+
+        h1 {
+            text-align: center;
+            color: #333;
+        }
+
+        form {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        select {
+            padding: 10px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 5px;
+        }
+
+        input[type="text"] {
+            width: 50%;
+            padding: 15px;
+            font-size: 16px;
+            border: 1px solid #ccc;
+            border-radius: 25px;
+            outline: none;
+            transition: border-color 0.3s, box-shadow 0.3s;
+        }
+
+        input[type="text"]:focus {
+            border-color: #007BFF;
+            box-shadow: 0 0 8px rgba(0, 123, 255, 0.5);
+        }
+
+        button {
+            padding: 12px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            background-color: #007BFF;
+            color: white;
+            border: none;
+            border-radius: 25px;
+            transition: background-color 0.3s, transform 0.2s;
+        }
+
+        button:hover {
+            background-color: #0056b3;
+            transform: scale(1.05);
+        }
+
+        #results {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+            margin: 0 auto;
+            max-width: 800px;
+        }
+
+        .product {
+            display: flex;
+            align-items: center;
+            border: 1px solid #ddd;
+            padding: 10px;
+            border-radius: 10px;
+            background-color: #fff;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .product img {
+            width: 100px;
+            height: 100px;
+            object-fit: cover;
+            border-radius: 10px;
+            margin-right: 20px;
+        }
+
+        .product-info {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .product-info h3 {
+            margin: 0;
+            font-size: 18px;
+            color: #333;
+        }
+
+        .product-info p {
+            margin: 5px 0;
+            color: #666;
+        }
+
+        .product-info .price {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .no-results {
+            text-align: center;
+            font-size: 18px;
+            color: #666;
+            margin-top: 20px;
+        }
+
+        .pagination .btn {
+            padding: 10px 20px; /* 增大按钮尺寸 */
+            font-size: 14px; /* 提高字体大小 */
+            cursor: pointer;
+            background: linear-gradient(45deg, #40c2ef, #676be7); /* 添加渐变背景 */
+            color: white;
+            border: none;
+            border-radius: 50px; /* 圆角更大 */
+            transition: transform 0.3s, box-shadow 0.3s; /* 添加阴影和缩放过渡效果 */
+            margin: 10px; /* 增加间距 */
+            box-shadow: 0px 4px 6px rgba(0, 0, 0, 0.2); /* 添加按钮阴影 */
+        }
+
+        .pagination .btn:hover {
+            transform: translateY(-5px); /* 悬停时向上浮动 */
+            box-shadow: 0px 8px 12px rgba(0, 0, 0, 0.3); /* 增强悬停时的阴影效果 */
+        }
+
+        .pagination .btn:disabled {
+            background: #e0e0e0; /* 禁用状态为灰色背景 */
+            cursor: not-allowed;
+            color: #a0a0a0; /* 禁用状态的文字颜色 */
+            box-shadow: none; /* 禁用状态去除阴影 */
+        }
+
+        .product-info .price {
+            color: #28a745;
+            font-weight: bold;
+        }
+
+        .product-info .price span.converted {
+            color: #555;
+            font-size: 0.9em;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+    <!-- 语言选择器 -->
+    <div style="text-align: center; margin-bottom: 20px;">
+        <label for="languageSelector">Language: </label>
+        <select id="languageSelector">
+            <option value="en">English</option>
+            <option value="zh">中文</option>
+            <option value="fr">Français</option>
+            <option value="ru">Русский</option>
+            <option value="ar">العربية</option>
+            <option value="es">Español</option>
+        </select>
+    </div>
+
+    <h1 id="title">Search the Database</h1>
+
+    <!-- 搜索表单 -->
+    <form id="searchForm">
+        <input type="text" id="inputText" name="inputText" placeholder="Enter your search term..." required>
+        <button type="submit" id="searchButton">Search</button>
+    </form>
+
+    <!-- 搜索结果容器 -->
+    <div id="results" aria-live="polite">
+        <!-- 动态搜索结果将插入这里 -->
+    </div>
+
+    <div id="pagination" class="pagination" style="text-align: center; margin-top: 20px; display: none;">
+        <button id="prevButton" class="btn">Previous</button>
+        <button id="nextButton" class="btn">Next</button>
+    </div>
+
+    <script>
+        // 汇率与符号表
+        const exchangeRates = { USD: 0.14, CNY: 1, EUR: 0.12, RUB: 10.36, SAR: 0.53 };
+        // 货币符号表
+        const currencySymbols = { USD: "$", CNY: "￥", EUR: "€", RUB: "₽", SAR: "﷼" };
+
+        // 获取当前语言对应的货币
+        function getCurrencySymbol(lang) {
+            const currencySymbols = {
+                en: '$', // 美元
+                zh: '￥', // 人民币
+                fr: '€', // 欧元
+                ru: '₽', // 俄罗斯卢布
+                ar: '﷼', // 阿拉伯里亚尔
+                es: '€', // 欧元
+            };
+        }
+
+        // 语言到货币映射
+        const languageToCurrency = {
+            en: "USD",
+            zh: "CNY",
+            fr: "EUR",
+            ru: "RUB",
+            ar: "SAR", // 沙特里亚尔
+            es: "EUR"
+        };
+
+        // 获取货币符号
+        function getCurrencySymbol(lang) {
+            const currency = languageToCurrency[lang] || "USD";
+            return currencySymbols[currency] || "$";
+        }
+
+        // 转换价格
+        function convertPrice(price, targetCurrency) {
+            const rate = exchangeRates[targetCurrency] || 1;
+            return price * rate;
+        }
+        // 多语言字典
+        const translations = {
+            en: {
+                title: "Search the Database",
+                placeholder: "Enter your search term...",
+                searchButton: "Search",
+                noResults: "No results found.",
+                error: "An error occurred while fetching results.",
+                previous: "Previous",
+                next: "Next"
+            },
+            zh: {
+                title: "搜索数据库",
+                placeholder: "输入搜索关键词...",
+                searchButton: "搜索",
+                noResults: "未找到结果。",
+                error: "获取结果时发生错误。",
+                previous: "上一页",
+                next: "下一页"
+            },
+            fr: {
+                title: "Rechercher dans la base de données",
+                placeholder: "Entrez votre terme de recherche...",
+                searchButton: "Rechercher",
+                noResults: "Aucun résultat trouvé.",
+                error: "Une erreur s'est produite lors de la récupération des résultats.",
+                previous: "Précédent",
+                next: "Suivant"
+            },
+            ru: {
+                title: "Поиск в базе данных",
+                placeholder: "Введите ваш поисковый запрос...",
+                searchButton: "Поиск",
+                noResults: "Результаты не найдены.",
+                error: "Произошла ошибка при получении результатов.",
+                previous: "Предыдущая",
+                next: "Следующая"
+            },
+            ar: {
+                title: "البحث في قاعدة البيانات",
+                placeholder: "أدخل مصطلح البحث الخاص بك...",
+                searchButton: "بحث",
+                noResults: "لم يتم العثور على نتائج.",
+                error: "حدث خطأ أثناء جلب النتائج.",
+                previous: "السابق",
+                next: "التالي"
+            },
+            es: {
+                title: "Buscar en la base de datos",
+                placeholder: "Ingresa tu término de búsqueda...",
+                searchButton: "Buscar",
+                noResults: "No se encontraron resultados.",
+                error: "Ocurrió un error al obtener los resultados.",
+                previous: "Anterior",
+                next: "Siguiente"
+            }
+        };
+
+
+        // 获取默认语言（系统语言）
+        const defaultLanguage = navigator.language.slice(0, 2) || "en";
+
+        function initializeLanguage(lang) {
+            const translation = translations[lang] || translations["en"];
+            document.getElementById("title").innerText = translation.title;
+            document.getElementById("inputText").placeholder = translation.placeholder;
+            document.getElementById("searchButton").innerText = translation.searchButton;
+
+            // 更新分页按钮文本
+            document.getElementById("prevButton").innerText = translation.previous;
+            document.getElementById("nextButton").innerText = translation.next;
+
+        }
+
+
+        // 页面加载时设置默认语言
+        document.addEventListener("DOMContentLoaded", () => {
+            const languageSelector = document.getElementById("languageSelector");
+            const systemLanguage = navigator.language.slice(0, 2); // 获取系统语言的两位简码
+
+            if (translations[systemLanguage]) {
+                languageSelector.value = systemLanguage; // 如果支持系统语言，设置为系统语言
+            } else {
+                languageSelector.value = "en"; // 如果不支持，设置为默认语言（英语）
+            }
+
+            // 初始化页面的默认语言
+            initializeLanguage(languageSelector.value);
+        });
+
+        // 语言选择事件
+        document.getElementById("languageSelector").addEventListener("change", function () {
+            const selectedLanguage = this.value;
+            initializeLanguage(selectedLanguage);
+        });
+
+
+        // 搜索功能
+        document.getElementById('searchForm').addEventListener('submit', async function(event) {
+            event.preventDefault();
+
+            const searchText = document.getElementById('inputText').value.trim();
+            const selectedLanguage = document.getElementById('languageSelector').value;
+
+            if (!searchText) {
+                document.getElementById('results').innerHTML = `<p>${translations[selectedLanguage].noResults}</p>`;
+                return;
+            }
+
+            //给出反馈
+            console.log(JSON.stringify({ query: searchText, language: selectedLanguage }));
+
+            try {
+                const response = await fetch('http://localhost:8080/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ query: searchText, language: selectedLanguage }) // 同时发送搜索内容和语言
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                let results = await response.json();
+
+                console.log('Parsed JSON:', results);
+
+                // 保持人民币价格，同时计算括号中展示的转换价格
+                const targetCurrency = languageToCurrency[selectedLanguage] || "USD"; // 获取目标货币
+                results = results.map(item => ({
+                    ...item,
+                    convertedPrice: convertPrice(item.price || 0, targetCurrency) // 保存转换价格
+                }));
+
+                displayResults(results, selectedLanguage);
+            } catch (error) {
+                console.error('Error fetching search results:', error);
+                document.getElementById('results').innerHTML = `<p>${translations[selectedLanguage].error}</p>`;
+            }
+        });
+
+        // 显示结果
+        let currentPage = 1; // 当前页码
+        const itemsPerPage = 3; // 每页展示的商品数
+        function displayResults(results, lang) {
+            const resultsContainer = document.getElementById('results');
+            const paginationDiv = document.getElementById('pagination');
+            const prevButton = document.getElementById('prevButton');
+            const nextButton = document.getElementById('nextButton');
+
+            // **新增：清空旧的搜索结果**
+            resultsContainer.innerHTML = '';
+
+            if (!results || results.length === 0) {
+                resultsContainer.innerHTML = `<p>${translations[lang].noResults}</p>`;
+                paginationDiv.style.display = 'none'; // 隐藏分页按钮
+                return;
+            }
+
+            const totalPages = Math.ceil(results.length / itemsPerPage); // 总页数
+            const startIndex = (currentPage - 1) * itemsPerPage; // 当前页起始索引
+            const endIndex = Math.min(startIndex + itemsPerPage, results.length); // 当前页结束索引
+
+            // 展示当前页的商品
+            for (let i = startIndex; i < endIndex; i++) {
+                const result = results[i];
+                const productDiv = document.createElement('div');
+                productDiv.className = 'product';
+
+                // 获取目标货币符号
+                const symbol = getCurrencySymbol(lang);
+
+                // 主价格始终为人民币，括号内为转换后的价格
+                productDiv.innerHTML = `
+                    <img src="${result.image || 'https://via.placeholder.com/100'}" alt="${result.name || 'Product'}">
+                    <div class="product-info">
+                        <h3>${result.name || 'N/A'}</h3>
+                        <p>${result.location || 'No location available'}</p>
+                        <p class="price">
+                            ￥${(result.price || 0).toFixed(2)}
+                            <span class="converted">(${symbol}${result.convertedPrice.toFixed(2)})</span>
+                        </p>
+                    </div>
+                `;
+                resultsContainer.appendChild(productDiv);
+            }
+
+            // 更新分页按钮状态
+            paginationDiv.style.display = 'block'; // 显示分页按钮
+            prevButton.disabled = currentPage <= 1; // 第一页时禁用
+            nextButton.disabled = currentPage >= totalPages; // 最后一页时禁用
+
+            // 添加事件监听
+            prevButton.onclick = () => {
+                if (currentPage > 1) {
+                    currentPage--;
+                    displayResults(results, lang);
+                }
+            };
+
+            nextButton.onclick = () => {
+                if (currentPage < totalPages) {
+                    currentPage++;
+                    displayResults(results, lang);
+                }
+            };
+        }
+
+    </script>
+</body>
+</html>
